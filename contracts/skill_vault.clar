@@ -7,6 +7,7 @@
 (define-constant err-not-found (err u101))
 (define-constant err-already-exists (err u102))
 (define-constant err-invalid-progress (err u103))
+(define-constant err-invalid-team (err u104))
 
 ;; Data structures
 (define-map skills 
@@ -29,9 +30,26 @@
     { awarded-at: uint }
 )
 
+;; New team-related data structures
+(define-map teams
+    { team-id: uint }
+    { name: (string-ascii 64), created-by: principal, created-at: uint }
+)
+
+(define-map team-members
+    { team-id: uint, user: principal }
+    { joined-at: uint }
+)
+
+(define-map team-skill-totals
+    { team-id: uint, skill-id: uint }
+    { total-progress: uint }
+)
+
 ;; Data vars
 (define-data-var next-skill-id uint u1)
 (define-data-var next-badge-id uint u1)
+(define-data-var next-team-id uint u1)
 
 ;; Admin functions
 (define-public (register-skill (name (string-ascii 64)) (description (string-ascii 256)))
@@ -63,6 +81,37 @@
     )
 )
 
+;; Team functions
+(define-public (create-team (name (string-ascii 64)))
+    (let ((team-id (var-get next-team-id)))
+        (begin
+            (map-set teams 
+                {team-id: team-id}
+                {name: name, created-by: tx-sender, created-at: block-height}
+            )
+            (map-set team-members
+                {team-id: team-id, user: tx-sender}
+                {joined-at: block-height}
+            )
+            (var-set next-team-id (+ team-id u1))
+            (ok team-id)
+        )
+    )
+)
+
+(define-public (join-team (team-id uint))
+    (if (map-get? teams {team-id: team-id})
+        (begin
+            (map-set team-members
+                {team-id: team-id, user: tx-sender}
+                {joined-at: block-height}
+            )
+            (ok true)
+        )
+        err-not-found
+    )
+)
+
 ;; User functions
 (define-public (update-skill-progress (skill-id uint) (progress uint))
     (let (
@@ -79,6 +128,7 @@
                 {user: tx-sender, skill-id: skill-id}
                 {progress: progress, last-updated: block-height}
             )
+            (try! (update-team-totals tx-sender skill-id progress))
             (try! (check-and-award-badges tx-sender skill-id progress))
             (ok true)
         )
@@ -110,6 +160,27 @@
     )
 )
 
+(define-private (update-team-totals (user principal) (skill-id uint) (progress uint))
+    (let ((user-teams (get-user-teams user)))
+        (begin
+            (map update-team-skill-total (unwrap-panic user-teams))
+            (ok true)
+        )
+    )
+)
+
+(define-private (update-team-skill-total (team-id uint))
+    (let ((current-total (default-to
+        {total-progress: u0}
+        (map-get? team-skill-totals {team-id: team-id, skill-id: skill-id})
+    )))
+        (map-set team-skill-totals
+            {team-id: team-id, skill-id: skill-id}
+            {total-progress: (+ (get total-progress current-total) progress)}
+        )
+    )
+)
+
 ;; Read functions
 (define-read-only (get-skill-progress (user principal) (skill-id uint))
     (ok (default-to 
@@ -126,6 +197,14 @@
 
 (define-read-only (get-user-badges (user principal))
     (ok (map-get? user-badges {user: user}))
+)
+
+(define-read-only (get-team-leaderboard (skill-id uint))
+    (ok (map-get? team-skill-totals {skill-id: skill-id}))
+)
+
+(define-read-only (get-user-teams (user principal))
+    (ok (map-get? team-members {user: user}))
 )
 
 (define-private (filter-matching-badge (badge-id uint) (skill-id uint) (progress uint))

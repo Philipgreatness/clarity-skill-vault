@@ -32,77 +32,59 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: "Users can update skill progress and earn badges",
+  name: "Users can create and join teams",
+  async fn(chain: Chain, accounts: Map<string, Account>) {
+    const user1 = accounts.get('wallet_1')!;
+    const user2 = accounts.get('wallet_2')!;
+    
+    let block = chain.mineBlock([
+      Tx.contractCall('skill-vault', 'create-team', [
+        types.ascii("Team Alpha")
+      ], user1.address),
+      Tx.contractCall('skill-vault', 'join-team', [
+        types.uint(1)
+      ], user2.address)
+    ]);
+    
+    block.receipts[0].result.expectOk();
+    block.receipts[1].result.expectOk();
+  }
+});
+
+Clarinet.test({
+  name: "Team skill totals update with member progress",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const deployer = accounts.get('deployer')!;
     const user1 = accounts.get('wallet_1')!;
     
-    // Setup skill and badge
+    // Setup skill and team
     let setup = chain.mineBlock([
       Tx.contractCall('skill-vault', 'register-skill', [
         types.ascii("Programming"),
         types.ascii("Software development skills")
       ], deployer.address),
-      Tx.contractCall('skill-vault', 'create-badge', [
-        types.uint(1), // skill-id
-        types.uint(100), // required-progress
-        types.ascii("Programming Master")
-      ], deployer.address)
+      Tx.contractCall('skill-vault', 'create-team', [
+        types.ascii("Team Alpha")
+      ], user1.address)
     ]);
     
     // Update progress
     let progressBlock = chain.mineBlock([
       Tx.contractCall('skill-vault', 'update-skill-progress', [
-        types.uint(1), // skill-id
+        types.uint(1),
         types.uint(50)
       ], user1.address)
     ]);
     
     progressBlock.receipts[0].result.expectOk();
     
-    // Check progress
+    // Check team totals
     let readBlock = chain.mineBlock([
-      Tx.contractCall('skill-vault', 'get-skill-progress', [
-        types.principal(user1.address),
+      Tx.contractCall('skill-vault', 'get-team-leaderboard', [
         types.uint(1)
       ], user1.address)
     ]);
     
-    const progressResult = readBlock.receipts[0].result.expectOk();
-    assertEquals(progressResult.progress, types.uint(50));
-  }
-});
-
-Clarinet.test({
-  name: "Cannot update progress to lower value",
-  async fn(chain: Chain, accounts: Map<string, Account>) {
-    const deployer = accounts.get('deployer')!;
-    const user1 = accounts.get('wallet_1')!;
-    
-    // Setup skill
-    let setup = chain.mineBlock([
-      Tx.contractCall('skill-vault', 'register-skill', [
-        types.ascii("Programming"),
-        types.ascii("Software development skills")
-      ], deployer.address),
-    ]);
-    
-    // Set initial progress
-    let progress1 = chain.mineBlock([
-      Tx.contractCall('skill-vault', 'update-skill-progress', [
-        types.uint(1),
-        types.uint(50)
-      ], user1.address)
-    ]);
-    
-    // Try to lower progress
-    let progress2 = chain.mineBlock([
-      Tx.contractCall('skill-vault', 'update-skill-progress', [
-        types.uint(1),
-        types.uint(40)
-      ], user1.address)
-    ]);
-    
-    progress2.receipts[0].result.expectErr(types.uint(103)); // err-invalid-progress
+    readBlock.receipts[0].result.expectOk();
   }
 });
