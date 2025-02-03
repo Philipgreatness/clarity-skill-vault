@@ -29,3 +29,8 @@ A gamified skill-tracking platform built on Stacks blockchain that allows users 
 - Track team skill totals
 - Compete on leaderboards
 - View team member progress
+
+## Recent Updates
+- Fixed badge filtering logic to properly check all available badges recursively
+- Added comprehensive testing for badge achievement system
+- Improved badge awarding efficiency
