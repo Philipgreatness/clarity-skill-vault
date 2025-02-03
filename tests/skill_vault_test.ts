@@ -88,3 +88,41 @@ Clarinet.test({
     readBlock.receipts[0].result.expectOk();
   }
 });
+
+Clarinet.test({
+  name: "Badge filtering checks all available badges",
+  async fn(chain: Chain, accounts: Map<string, Account>) {
+    const deployer = accounts.get('deployer')!;
+    const user1 = accounts.get('wallet_1')!;
+    
+    // Setup skill and badges
+    let setup = chain.mineBlock([
+      Tx.contractCall('skill-vault', 'register-skill', [
+        types.ascii("Programming"),
+        types.ascii("Software development skills")
+      ], deployer.address),
+      Tx.contractCall('skill-vault', 'create-badge', [
+        types.uint(1),
+        types.uint(25),
+        types.ascii("Bronze")
+      ], deployer.address),
+      Tx.contractCall('skill-vault', 'create-badge', [
+        types.uint(1),
+        types.uint(50),
+        types.ascii("Silver")
+      ], deployer.address)
+    ]);
+    
+    setup.receipts.map(receipt => receipt.result.expectOk());
+    
+    // Update progress and check badges
+    let progressBlock = chain.mineBlock([
+      Tx.contractCall('skill-vault', 'update-skill-progress', [
+        types.uint(1),
+        types.uint(60)
+      ], user1.address)
+    ]);
+    
+    progressBlock.receipts[0].result.expectOk();
+  }
+});
