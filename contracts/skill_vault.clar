@@ -190,9 +190,7 @@
 )
 
 (define-read-only (get-badge-for-progress (skill-id uint) (progress uint))
-    (let ((badge-id (var-get next-badge-id)))
-        (filter-matching-badge badge-id skill-id progress)
-    )
+    (filter-matching-badge u1 skill-id progress)
 )
 
 (define-read-only (get-user-badges (user principal))
@@ -207,15 +205,21 @@
     (ok (map-get? team-members {user: user}))
 )
 
-(define-private (filter-matching-badge (badge-id uint) (skill-id uint) (progress uint))
-    (let ((badge-data (map-get? badges {badge-id: badge-id})))
-        (if (and
-            (is-some badge-data)
-            (is-eq (get skill-id (unwrap-panic badge-data)) skill-id)
-            (>= progress (get required-progress (unwrap-panic badge-data)))
-        )
-            (some badge-id)
+(define-private (filter-matching-badge (current-id uint) (skill-id uint) (progress uint))
+    (let (
+        (badge-data (map-get? badges {badge-id: current-id}))
+        (next-id (+ current-id u1))
+    )
+        (if (>= current-id (var-get next-badge-id))
             none
+            (if (and
+                (is-some badge-data)
+                (is-eq (get skill-id (unwrap-panic badge-data)) skill-id)
+                (>= progress (get required-progress (unwrap-panic badge-data)))
+            )
+                (some current-id)
+                (filter-matching-badge next-id skill-id progress)
+            )
         )
     )
 )
